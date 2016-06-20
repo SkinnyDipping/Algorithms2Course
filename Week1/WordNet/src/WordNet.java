@@ -1,19 +1,20 @@
 import edu.princeton.cs.algs4.*;
 
+import java.util.ArrayList;
 import java.util.Scanner;
 
 public class WordNet {
 
-    private static final int MAX_SIZE = 20;
-
     private SAP shortestAncestralPath;
     private Digraph hypernymsGraph;
-    private SeparateChainingHashST<String, Integer> nounsHashSet;
+    private SeparateChainingHashST<String, Bag<Integer>> nounsHashSet;
     private SeparateChainingHashST<Integer, String> synsetsHashSet;
 
     // constructor takes the name of the two input files
     public WordNet(String synsets, String hypernyms) {
         if (synsets == null || hypernyms == null) throw new NullPointerException();
+
+        int maxSynsetId = 0;
 
         // sysnets
         In synsetsIn = new In(synsets);
@@ -27,21 +28,31 @@ public class WordNet {
             String synset = sc.next();
             synsetsHashSet.put(synsetsId, synset);
             String[] nouns = synset.split(" ");
-            for (String noun : nouns)
-                nounsHashSet.put(noun, synsetsId);
+            for (String noun : nouns) {
+                Bag<Integer> bag = nounsHashSet.get(noun);
+                if (bag == null) {
+                    bag = new Bag<>();
+                    nounsHashSet.put(noun, bag);
+                }
+                bag.add(synsetsId);
+                maxSynsetId = maxSynsetId < synsetsId ? synsetsId : maxSynsetId;
+            }
         }
 
         // hypernyms
         In hyprnymsIn = new In(hypernyms);
-        hypernymsGraph = new Digraph(MAX_SIZE);
+        hypernymsGraph = new Digraph(maxSynsetId + 1);
         while (hyprnymsIn.hasNextLine()) {
             String line = hyprnymsIn.readLine();
             Scanner sc = new Scanner(line);
             sc.useDelimiter(",");
             int v = sc.nextInt();
-            int w = sc.nextInt();
-            hypernymsGraph.addEdge(v, w);
+            while (sc.hasNext()) {
+                int w = sc.nextInt();
+                hypernymsGraph.addEdge(v, w);
+            }
         }
+
         shortestAncestralPath = new SAP(hypernymsGraph);
 
     }
@@ -60,8 +71,8 @@ public class WordNet {
     // distance between nounA and nounB (defined below)
     public int distance(String nounA, String nounB) {
         if (!isNoun(nounA) || !isNoun(nounB)) throw new IllegalArgumentException();
-        int v = nounsHashSet.get(nounA);
-        int w = nounsHashSet.get(nounB);
+        Bag<Integer> v = nounsHashSet.get(nounA);
+        Bag<Integer> w = nounsHashSet.get(nounB);
         return shortestAncestralPath.length(v, w);
     }
 
@@ -69,29 +80,35 @@ public class WordNet {
     // in a shortest ancestral path (defined below)
     public String sap(String nounA, String nounB) {
         if (!isNoun(nounA) || !isNoun(nounB)) throw new IllegalArgumentException();
-
-        return null;
+        Bag<Integer> v = nounsHashSet.get(nounA);
+        Bag<Integer> w = nounsHashSet.get(nounB);
+        int ancestor = shortestAncestralPath.ancestor(v, w);
+        return synsetsHashSet.get(ancestor);
     }
 
     // do unit testing of this class
     public static void main(String[] args) {
         WordNet wn = new WordNet(args[0], args[1]);
-        for (char c = 'a'; c < 'z' + 1; c++) {
-            if (c == 'q') continue;
-            int id = wn.nounsHashSet.get(String.valueOf(c));
-            StdOut.printf("String: %s id: %d\n", c, id);
-        }
-        String noun = "aa";
-        StdOut.printf("%s is noun: %b\n", noun, wn.isNoun(noun));
-        for (String s : wn.nouns()) {
-            StdOut.print(s + "\n");
-        }
+        wn.check(wn, "worm", "bird", 5, "animal animate_being beast brute creature fauna");
+        wn.check(wn, "individual", "edible_fruit", 7, "physical_entity");
+        wn.check(wn, "white_marlin", "mileage", 23, "entity");
+        wn.check(wn, "Black_Plague", "black_marlin", 33, "entity");
+        wn.check(wn, "American_water_spaniel", "histology", 27, "entity");
+        wn.check(wn, "Brown_Swiss", "barrel_roll", 29, "entity");
+        wn.check(wn, "Waller", "civil_action", 0, "");
 
-//        while (!StdIn.isEmpty()) {
-//            int v = StdIn.readInt();
-//            int w = StdIn.readInt();
-//            StdOut.printf("length=%d, anc=%d\n", wn.shortestAncestralPath.length(v, w), wn.shortestAncestralPath.ancestor(v, w));
-//        }
+//        SeparateChainingHashST<Integer, Bag<Integer>> set = new SeparateChainingHashST<>();
+//        if (set.get(1) == null) StdOut.print("asdf");
+//        Bag<Integer> bag = new Bag<>();
+//        set.put(1, bag);
+//        bag.add(666);
+//        set.get(1).add(666);
+//        StdOut.print(set.get(1).iterator().next());
+    }
+
+    private void check(WordNet wn, String s1, String s2, int dexp, String aexp) {
+        StdOut.printf("\nDistance: %d Expected: %d\n", wn.distance(s1, s2), dexp);
+        StdOut.printf("Ancestor: %s Expected: %s\n", wn.sap(s1, s2), aexp);
     }
 
 }
